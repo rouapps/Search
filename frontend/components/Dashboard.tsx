@@ -74,13 +74,6 @@ export default function Dashboard({ result, onReset }: DashboardProps) {
               </div>
             )}
           </div>
-          <div className="ml-6 text-right">
-            <div className="text-sm text-slate-600 mb-1">Evidence Confidence</div>
-            <div className="text-4xl font-serif font-bold text-slate-900">
-              {result.confidence_score}
-              <span className="text-xl text-slate-600">/100</span>
-            </div>
-          </div>
         </div>
         <button
           onClick={onReset}
@@ -105,40 +98,52 @@ export default function Dashboard({ result, onReset }: DashboardProps) {
             <ProbabilityChart probabilities={result.outcome_probabilities} />
             <div className="mt-6 grid md:grid-cols-2 gap-4">
               <div className="p-4 bg-slate-50 rounded-xl">
-                <div className="text-sm text-slate-600 mb-1">Next Round</div>
-                <div className="text-xl font-serif font-bold text-slate-900">
+                <div className="text-sm text-slate-600 mb-1">Next Round Funding</div>
+                <div className="text-xl font-serif font-bold text-slate-900 mb-2">
                   {formatConfidenceInterval(
                     result.outcome_probabilities.next_round.mean,
                     result.outcome_probabilities.next_round.lower_ci,
                     result.outcome_probabilities.next_round.upper_ci
                   )}
                 </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {result.outcome_probabilities.next_round_explanation}
+                </p>
               </div>
               <div className="p-4 bg-slate-50 rounded-xl">
-                <div className="text-sm text-slate-600 mb-1">PMF Proxy</div>
-                <div className="text-xl font-serif font-bold text-slate-900">
+                <div className="text-sm text-slate-600 mb-1">Product-Market Fit</div>
+                <div className="text-xl font-serif font-bold text-slate-900 mb-2">
                   {formatConfidenceInterval(
                     result.outcome_probabilities.pmf_proxy.mean,
                     result.outcome_probabilities.pmf_proxy.lower_ci,
                     result.outcome_probabilities.pmf_proxy.upper_ci
                   )}
                 </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {result.outcome_probabilities.pmf_explanation}
+                </p>
               </div>
               <div className="p-4 bg-slate-50 rounded-xl">
-                <div className="text-sm text-slate-600 mb-1">24m Survival</div>
-                <div className="text-xl font-serif font-bold text-slate-900">
+                <div className="text-sm text-slate-600 mb-1">24-Month Survival</div>
+                <div className="text-xl font-serif font-bold text-slate-900 mb-2">
                   {formatConfidenceInterval(
                     result.outcome_probabilities.survival_24m.mean,
                     result.outcome_probabilities.survival_24m.lower_ci,
                     result.outcome_probabilities.survival_24m.upper_ci
                   )}
                 </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {result.outcome_probabilities.survival_explanation}
+                </p>
               </div>
               <div className="p-4 bg-slate-50 rounded-xl">
                 <div className="text-sm text-slate-600 mb-1">Capital Efficiency</div>
-                <div className="text-xl font-serif font-bold text-slate-900">
+                <div className="text-xl font-serif font-bold text-slate-900 mb-2">
                   {result.outcome_probabilities.capital_efficiency_percentile.toFixed(0)}th percentile
                 </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {result.outcome_probabilities.capital_efficiency_explanation}
+                </p>
               </div>
             </div>
           </div>
@@ -149,17 +154,35 @@ export default function Dashboard({ result, onReset }: DashboardProps) {
               Similar Startups
             </h2>
             <div className="space-y-4">
-              {result.comparables.slice(0, 5).map((comp, idx) => (
+              {result.comparables.slice(0, 10).map((comp, idx) => (
                 <div
                   key={idx}
-                  className={`p-5 border-2 rounded-xl ${getOutcomeColor(comp.outcome_label)}`}
+                  className={`p-5 border-2 rounded-xl ${getOutcomeColor(comp.outcome_label)} transition-all hover:shadow-md`}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
                       {getOutcomeIcon(comp.outcome_label)}
-                      <h3 className="font-serif font-bold text-slate-900 text-lg">
-                        {comp.name}
-                      </h3>
+                      <a 
+                        href={comp.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                      >
+                        {comp.logo_url && (
+                          <img 
+                            src={comp.logo_url}
+                            alt={`${comp.name} logo`}
+                            className="w-8 h-8 object-contain rounded"
+                            onError={(e) => {
+                              // Fallback if logo doesn't load
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        )}
+                        <h3 className="font-serif font-bold text-slate-900 text-lg hover:text-blue-600">
+                          {comp.name}
+                        </h3>
+                      </a>
                     </div>
                     <div className="text-sm font-medium text-slate-600">
                       {comp.similarity_score.toFixed(0)}% match
@@ -176,17 +199,23 @@ export default function Dashboard({ result, onReset }: DashboardProps) {
                     ))}
                   </div>
                   <p className="text-sm text-slate-700 mb-2">{comp.traction_snippet}</p>
-                  <p className="text-sm text-slate-600">{comp.funding_snippet}</p>
+                  <p className="text-sm text-slate-600 mb-3">{comp.funding_snippet}</p>
                   {comp.citations.length > 0 && (
-                    <a
-                      href={comp.citations[0].url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-3 inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900 transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      Source
-                    </a>
+                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-200">
+                      {comp.citations.slice(0, 2).map((citation, citIdx) => (
+                        <a
+                          key={citIdx}
+                          href={citation.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                          title={citation.title}
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          {citation.title.substring(0, 40)}{citation.title.length > 40 ? '...' : ''}
+                        </a>
+                      ))}
+                    </div>
                   )}
                 </div>
               ))}

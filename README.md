@@ -7,15 +7,31 @@ IdeaCompass applies **reference-class forecasting** to business ideas, providing
 ## 🎯 What It Does
 
 - **Reference Class Matching**: Compare your idea to thousands of similar past cases
-- **Probabilistic Outcomes**: Get calibrated estimates with 80% confidence intervals for:
-  - P(raising next round)
-  - P(achieving PMF proxy - $1M ARR / 100k MAU)
-  - 24-month survival probability
-  - Capital efficiency percentile
-- **Market Intelligence**: Crowding index, TAM/SAM analysis, funding velocity, competitive moats
+- **🔥 NEW: Real Crunchbase Data-Driven Outcomes** with plain-English explanations:
+  - P(raising next round) - calculated from **real Crunchbase data** (e.g., "28 of 87 startups funded")
+  - P(achieving PMF) - based on actual traction signals and funding velocity
+  - 24-month survival - adjusted for market moats and competition
+  - Capital efficiency - shows average funding amounts from Crunchbase (e.g., "$6.5M average")
+  - Each metric backed by verifiable data, not estimates or AI hallucinations
+- **🔥 NEW: Real-Time Market Intelligence** (Powered by Sonar Finance):
+  - Live TAM/SAM data from recent market reports
+  - Dynamic funding velocity tracking (deals, amounts, investors)
+  - Real-time crowding index calculation
+  - Competitive moats analysis from financial sources
+  - Cited financial data from PitchBook, Crunchbase, SEC filings
+- **🔥 NEW: Media Classifier API**: 
+  - Properly enabled with `enable_media_classifier=True`
+  - Analyze logos, screenshots, and product images
+  - Extract brand positioning and target market signals
+  - Competitive insights from visual content
+  - Product quality assessment from UI/UX
+  - Automatic detection of when visual content enhances analysis
 - **Risk Radar**: Regulatory, platform dependency, pricing pressure, and distribution risks
 - **Pivot Navigator**: Top 2-3 closest viable pivots with expected uplift
 - **Full Citations**: Every claim links back to sources
+
+📖 **[Read the Sonar Finance & Media Classifier Guide →](./SONAR_FINANCE_GUIDE.md)**
+📖 **[Read the Real Crunchbase Integration Guide →](./CRUNCHBASE_INTEGRATION.md)**
 
 ## 🏗️ Architecture
 
@@ -165,7 +181,35 @@ Perform comprehensive analysis on an idea or startup.
   "mcq_answers": [
     {"question": "Target user?", "answer": "SMB"}
   ],
-  "submission_type": "idea"
+  "submission_type": "idea",
+  "media_urls": [
+    "https://example.com/logo.png",
+    "https://example.com/screenshot.png"
+  ]
+}
+```
+
+### `POST /api/classify-media` 🔥 NEW
+Analyze logos, screenshots, or product images for market insights.
+
+```json
+{
+  "media_url": "https://example.com/logo.png",
+  "context": "AI invoice reconciliation tool"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "analysis": "Full text analysis of visual content...",
+  "insights": [
+    "Professional B2B branding",
+    "Enterprise-focused design language",
+    "Modern SaaS positioning"
+  ],
+  "confidence": 0.75
 }
 ```
 
@@ -232,6 +276,8 @@ Based on extensive research:
 ### APIs
 - **Perplexity Search API**: Multi-query web search with content extraction
 - **Perplexity Chat Completions (Sonar/Sonar-Pro)**: Cited synthesis with structured JSON outputs
+- **🔥 Perplexity Sonar Finance**: Real-time financial and market intelligence
+- **🔥 Perplexity Vision/Media**: Image and visual content analysis
 - **Perplexity Deep Research** (optional): Multi-step research for featured ideas
 
 ## 📈 Cost Estimates
@@ -239,7 +285,9 @@ Based on extensive research:
 Per idea analysis (typical):
 - 8-12 Search API calls: ~$0.04-$0.06
 - 2-3 Sonar/Sonar-Pro calls: ~$0.06-$0.18
-- **Total: ~$0.10-$0.24/idea**
+- 🔥 1 Sonar Finance call: ~$0.03-$0.05
+- 🔥 Media classification (optional): ~$0.02-$0.04 per image
+- **Total: ~$0.13-$0.29/idea** (without media) or **~$0.15-$0.37/idea** (with media)
 - Deep Research (optional): +$0.41 for flagship memo
 
 ## 🚧 Roadmap

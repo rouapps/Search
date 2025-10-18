@@ -19,6 +19,7 @@ export interface Citation {
 export interface Comparable {
   name: string
   url: string
+  logo_url?: string  // Company logo from Clearbit
   similarity_score: number
   tags: {
     [key: string]: string
@@ -35,17 +36,21 @@ export interface OutcomeProbabilities {
     lower_ci: number
     upper_ci: number
   }
+  next_round_explanation: string
   pmf_proxy: {
     mean: number
     lower_ci: number
     upper_ci: number
   }
+  pmf_explanation: string
   survival_24m: {
     mean: number
     lower_ci: number
     upper_ci: number
   }
+  survival_explanation: string
   capital_efficiency_percentile: number
+  capital_efficiency_explanation: string
 }
 
 export interface RiskRadar {
@@ -92,7 +97,6 @@ export interface AnalysisResult {
   risk_radar: RiskRadar
   execution_levers: ExecutionLever[]
   pivot_suggestions: PivotSuggestion[]
-  confidence_score: number
   evidence_summary: {
     total_sources: number
     high_quality_sources: number
