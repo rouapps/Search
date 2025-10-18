@@ -98,16 +98,7 @@ class PivotSuggestion(BaseModel):
     citations: List[Citation]
 
 class MarketAnalysis(BaseModel):
-    crowding_index: float
-    tam_sam_rationale: str
-    funding_velocity: str
-    notable_moats: str
-    citations: List[Citation]
-
-class MarketVisualContent(BaseModel):
-    visual_content: List[Dict[str, Any]]
-    market_insights: List[str]
-    media_results_count: int
+    landscape: str  # Simple text analysis from Sonar
 
 class AnalysisResponse(BaseModel):
     id: str
@@ -116,7 +107,6 @@ class AnalysisResponse(BaseModel):
     mcq_answers: Optional[List[MCQAnswer]]
     comparables: List[Comparable]
     market_analysis: MarketAnalysis
-    market_visual_content: MarketVisualContent
     execution_levers: List[ExecutionLever]
     pivot_suggestions: List[PivotSuggestion]
     created_at: str
@@ -335,91 +325,6 @@ async def get_educational_visual_content(query: str) -> dict:
             "analysis": f"Educational media analysis failed: {str(e)}",
             "insights": [],
             "confidence": 0.0,
-            "media_results": []
-        }
-
-async def get_market_visual_content(idea: str, market_data: dict) -> dict:
-    """
-    Use Media Classifier to get visual content that helps understand the market
-    Returns graphs, charts, diagrams, and visual data about market trends, competitive landscape, etc.
-    """
-    if not client:
-        return {
-            "visual_content": [],
-            "market_insights": "Market visual analysis unavailable",
-            "media_results": []
-        }
-
-    try:
-        # Create a query that asks for visual market data
-        market_query = f"""Show visual content that helps understand the market for: {idea}
-
-Focus on:
-1. Market size and growth charts (TAM/SAM visualizations)
-2. Competitive landscape diagrams and positioning maps
-3. Industry trend graphs and forecasting charts
-4. Market share visualizations and pie charts
-5. Funding flow diagrams and investment trend graphs
-6. Customer segmentation and demographic visualizations
-
-Return educational charts, graphs, and diagrams that illustrate market dynamics, competitive positioning, and industry trends."""
-
-        # Search for market visual content with citations
-        response = client.chat.completions.create(
-            model="sonar-pro",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a market research analyst. Find and return visual content like charts, graphs, diagrams, and infographics that help explain market dynamics, competitive landscapes, and industry trends."
-                },
-                {
-                    "role": "user",
-                    "content": market_query
-                }
-            ],
-            temperature=0.3,
-            max_tokens=1000,
-            return_citations=True
-        )
-
-        content = response.choices[0].message.content
-
-        # Extract media results (visual market content)
-        media_results = []
-        if hasattr(response, 'media') and response.media:
-            media_results = response.media
-
-        # Extract visual content URLs and descriptions
-        visual_content = []
-        for media_item in media_results:
-            if isinstance(media_item, dict) and media_item.get('url'):
-                visual_content.append({
-                    "url": media_item['url'],
-                    "type": media_item.get('type', 'image'),
-                    "description": media_item.get('description', 'Market visualization')
-                })
-
-        # Parse market insights from text content
-        market_insights = []
-        for line in content.split('\n'):
-            line = line.strip()
-            if line and len(line) > 20:
-                if any(keyword in line.lower() for keyword in ['market', 'chart', 'graph', 'diagram', 'trend', 'visualization']):
-                    market_insights.append(line)
-                elif line.startswith(('•', '-', '*', '1.', '2.', '3.', '4.', '5.')):
-                    market_insights.append(line.lstrip('•-*123456789. '))
-
-        return {
-            "visual_content": visual_content[:10],  # Limit to 10 visual items
-            "market_insights": market_insights[:5] if market_insights else ["Visual market analysis completed"],
-            "media_results": media_results
-        }
-
-    except Exception as e:
-        print(f"Error getting market visual content: {e}")
-        return {
-            "visual_content": [],
-            "market_insights": f"Market visual analysis failed: {str(e)}",
             "media_results": []
         }
 
@@ -743,142 +648,50 @@ Context: {mcq_context if mcq_context else 'General market analysis'}"""
             "raw_data": str(e)
         }
 
-async def get_market_analysis_with_finance(idea: str, mcq_context: str, analysis_data: dict) -> dict:
+async def get_simple_market_landscape(idea: str, mcq_context: str) -> str:
     """
-    Use Perplexity Sonar Finance to get real-time market and financial data
+    Simple sonar prompt to get market landscape analysis
+    Returns a comprehensive market overview as text
     """
     if not client:
-        # Return defaults if client not configured
-        return {
-            "crowding_index": float(analysis_data.get("market_crowding", 64)),
-            "tam_sam_rationale": "Estimated TAM of $50B based on market analysis",
-            "funding_velocity": "15 deals in last 12 months totaling $85M",
-            "notable_moats": "Network effects, switching costs, data moats",
-            "citations": []
-        }
+        return "Market analysis unavailable - API client not configured"
     
     try:
-        # Construct financial research query
-        finance_query = f"""Analyze the market and financial landscape for: {idea}
-        
-Context: {mcq_context if mcq_context else 'No additional context'}
+        # Simple, straightforward prompt
+        market_prompt = f"""Analyze the market landscape for: {idea}
 
-Provide detailed financial and market analysis:
-1. Total Addressable Market (TAM) and Serviceable Addressable Market (SAM) with recent data
-2. Recent funding activity in this space (deals in last 12-24 months, amounts, notable investors)
-3. Market competitiveness/crowding (0-100 scale, where 100 is extremely crowded)
-4. Defensible moats and competitive advantages in this market
-5. Notable competitors and their funding status
+Context: {mcq_context if mcq_context else 'New business idea'}
 
-Return structured data with specific numbers, dates, and sources."""
+Provide a concise market analysis covering:
+1. Market size and growth trends
+2. Recent funding activity in this space
+3. Level of competition (crowded vs emerging)
+4. Key competitive advantages and moats
 
-        # Use Sonar Finance model for financial/market intelligence
+Keep it factual and cite recent data."""
+
+        # Use Sonar Pro for market research
         response = client.chat.completions.create(
-            model="sonar-finance",  # Financial and market-focused model
+            model="sonar-pro",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a financial analyst providing data-driven market intelligence. Focus on recent financial data, funding rounds, market size, and competitive analysis. Cite specific sources and numbers."
+                    "content": "You are a market research analyst. Provide concise, data-driven market analysis."
                 },
                 {
                     "role": "user",
-                    "content": finance_query
+                    "content": market_prompt
                 }
             ],
-            temperature=0.3,  # Lower temperature for more factual responses
-            max_tokens=1500
+            temperature=0.3,
+            max_tokens=800
         )
         
-        content = response.choices[0].message.content
-        
-        # Extract citations if available
-        citations = []
-        if hasattr(response, 'citations') and response.citations:
-            for citation in response.citations[:3]:
-                citations.append(Citation(
-                    title=citation.get("title", "Financial Source"),
-                    url=citation.get("url", ""),
-                    snippet=citation.get("snippet", "")[:200],
-                    date=citation.get("date")
-                ))
-        
-        # Parse the response to extract structured data
-        # Try to find TAM/SAM information
-        tam_sam_rationale = "Market size data unavailable"
-        funding_velocity = "Funding data unavailable"
-        notable_moats = "Competitive advantages analysis unavailable"
-        crowding_index = float(analysis_data.get("market_crowding", 50))
-        
-        # Look for TAM/SAM mentions
-        lines = content.lower().split('\n')
-        for i, line in enumerate(lines):
-            if 'tam' in line or 'total addressable market' in line or 'market size' in line:
-                # Get this line and next few lines
-                tam_sam_rationale = ' '.join(lines[i:min(i+3, len(lines))]).strip()
-                if len(tam_sam_rationale) > 200:
-                    tam_sam_rationale = tam_sam_rationale[:200] + "..."
-                break
-        
-        # Look for funding information
-        for i, line in enumerate(lines):
-            if 'funding' in line or 'raised' in line or 'investment' in line or 'deals' in line:
-                funding_velocity = ' '.join(lines[i:min(i+3, len(lines))]).strip()
-                if len(funding_velocity) > 200:
-                    funding_velocity = funding_velocity[:200] + "..."
-                break
-        
-        # Look for moats/competitive advantages
-        for i, line in enumerate(lines):
-            if 'moat' in line or 'competitive advantage' in line or 'barrier' in line or 'defensib' in line:
-                notable_moats = ' '.join(lines[i:min(i+3, len(lines))]).strip()
-                if len(notable_moats) > 200:
-                    notable_moats = notable_moats[:200] + "..."
-                break
-        
-        # Look for crowding/competition indicators
-        for line in lines:
-            if 'crowd' in line or 'competitive' in line or 'saturated' in line:
-                # Try to extract a number if mentioned
-                if 'high' in line or 'very' in line or 'extremely' in line:
-                    crowding_index = 75.0
-                elif 'moderate' in line or 'medium' in line:
-                    crowding_index = 50.0
-                elif 'low' in line or 'emerging' in line:
-                    crowding_index = 25.0
-                break
-        
-        # If we didn't find good data, use the full response intelligently
-        if tam_sam_rationale == "Market size data unavailable":
-            # Extract first meaningful paragraph
-            paragraphs = [p.strip() for p in content.split('\n\n') if len(p.strip()) > 50]
-            if paragraphs:
-                tam_sam_rationale = paragraphs[0][:200]
-                if len(paragraphs) > 1:
-                    funding_velocity = paragraphs[1][:200] if len(paragraphs[1]) > 50 else funding_velocity
-                if len(paragraphs) > 2:
-                    notable_moats = paragraphs[2][:200] if len(paragraphs[2]) > 50 else notable_moats
-        
-        return {
-            "crowding_index": crowding_index,
-            "tam_sam_rationale": tam_sam_rationale,
-            "funding_velocity": funding_velocity,
-            "notable_moats": notable_moats,
-            "citations": citations
-        }
+        return response.choices[0].message.content
         
     except Exception as e:
-        print(f"Error in Sonar Finance analysis: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # Return defaults on error
-        return {
-            "crowding_index": float(analysis_data.get("market_crowding", 64)),
-            "tam_sam_rationale": "Market analysis temporarily unavailable",
-            "funding_velocity": "Funding data temporarily unavailable",
-            "notable_moats": "Competitive analysis temporarily unavailable",
-            "citations": []
-        }
+        print(f"Error in market landscape analysis: {e}")
+        return "Market landscape analysis temporarily unavailable"
 
 # API Endpoints
 @app.get("/")
@@ -1244,32 +1057,11 @@ ONLY use companies EXPLICITLY mentioned in the search results. Include the sourc
         
         print(f"Built {len(comparables)} comparable companies with real data")
         
-        # Fetch REAL Crunchbase data for this space
-        print(f"Fetching real Crunchbase data for: {request.idea}")
-        crunchbase_data = await fetch_crunchbase_data(
-            idea=request.idea,
-            industry=analysis_data.get("industry", ""),
-            mcq_context=mcq_context
-        )
-        print(f"Crunchbase data: {crunchbase_data['total_companies']} companies, {crunchbase_data['success_rate']:.1%} success rate")
-        
-        # Market analysis using Sonar Finance (moved before probabilities)
-        market_data = await get_market_analysis_with_finance(request.idea, mcq_context, analysis_data)
+        # Simple market landscape analysis
+        print(f"Fetching market landscape for: {request.idea}")
+        market_landscape_text = await get_simple_market_landscape(request.idea, mcq_context)
         market_analysis = MarketAnalysis(
-            crowding_index=market_data["crowding_index"],
-            tam_sam_rationale=market_data["tam_sam_rationale"],
-            funding_velocity=market_data["funding_velocity"],
-            notable_moats=market_data["notable_moats"],
-            citations=market_data["citations"]
-        )
-
-        # Get visual content that helps understand the market
-        print(f"Fetching visual market content for: {request.idea}")
-        market_visual_data = await get_market_visual_content(request.idea, market_data)
-        market_visual_content = MarketVisualContent(
-            visual_content=market_visual_data["visual_content"],
-            market_insights=market_visual_data["market_insights"],
-            media_results_count=len(market_visual_data["media_results"])
+            landscape=market_landscape_text
         )
         
         # Generate flexible execution levers with media support
@@ -1277,7 +1069,7 @@ ONLY use companies EXPLICITLY mentioned in the search results. Include the sourc
         execution_levers = await get_execution_levers_with_media(
             idea=request.idea,
             comparables=comparables,
-            market_data=market_data
+            market_data={}  # No longer need complex market_data
         )
         
         # Pivot suggestions from real market patterns
@@ -1338,7 +1130,6 @@ Only suggest pivots with real precedent."""
             mcq_answers=request.mcq_answers,
             comparables=comparables,
             market_analysis=market_analysis,
-            market_visual_content=market_visual_content,
             execution_levers=execution_levers,
             pivot_suggestions=pivot_suggestions,
             created_at=datetime.now().isoformat()

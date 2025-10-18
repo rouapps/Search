@@ -83,65 +83,10 @@ export default function Dashboard({ result, onReset }: DashboardProps) {
               </h2>
             </div>
             
-            <div className="space-y-6">
-              {/* Market Analysis */}
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="p-4 bg-slate-50 rounded-xl">
-                  <div className="text-sm text-slate-600 mb-2">Market Crowding</div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500"
-                        style={{ width: `${result.market_analysis.crowding_index}%` }}
-                      />
-                    </div>
-                    <span className="text-lg font-bold text-slate-900">
-                      {result.market_analysis.crowding_index.toFixed(0)}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="p-4 bg-slate-50 rounded-xl">
-                  <div className="text-sm text-slate-600 mb-2">Funding Activity</div>
-                  <p className="text-sm text-slate-900">{result.market_analysis.funding_velocity}</p>
-                </div>
+            <div className="prose prose-slate max-w-none">
+              <div className="text-slate-700 whitespace-pre-line">
+                {result.market_analysis.landscape}
               </div>
-
-              <div className="p-4 bg-slate-50 rounded-xl">
-                <div className="text-sm text-slate-600 mb-2">Market Size (TAM/SAM)</div>
-                <p className="text-sm text-slate-900">{result.market_analysis.tam_sam_rationale}</p>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-xl">
-                <div className="text-sm text-slate-600 mb-2">Key Moats & Defensibility</div>
-                <p className="text-sm text-slate-900">{result.market_analysis.notable_moats}</p>
-              </div>
-
-              {/* Visual Content from Media Classifier */}
-              {result.market_visual_content && result.market_visual_content.visual_content.length > 0 && (
-                <div className="space-y-4">
-                  <div className="text-sm font-medium text-slate-700">Market Insights & Data</div>
-                  <div className="grid gap-4">
-                    {result.market_visual_content.visual_content.slice(0, 3).map((item, idx) => (
-                      <div key={idx} className="rounded-lg overflow-hidden border border-slate-200">
-                        <img 
-                          src={item.url} 
-                          alt={item.description}
-                          className="w-full h-auto"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                        />
-                        {item.description && (
-                          <div className="p-3 bg-slate-50 border-t border-slate-200">
-                            <p className="text-xs text-slate-600">{item.description}</p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 

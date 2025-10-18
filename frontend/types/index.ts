@@ -39,11 +39,7 @@ export interface PivotSuggestion {
 }
 
 export interface MarketAnalysis {
-  crowding_index: number
-  tam_sam_rationale: string
-  funding_velocity: string
-  notable_moats: string
-  citations: Citation[]
+  landscape: string  // Simple text analysis from Sonar
 }
 
 export interface ExecutionLever {
@@ -57,16 +53,6 @@ export interface ExecutionLever {
   citations: Citation[]
 }
 
-export interface MarketVisualContent {
-  visual_content: Array<{
-    url: string
-    type: string
-    description: string
-  }>
-  market_insights: string[]
-  media_results_count: number
-}
-
 export interface AnalysisResult {
   id: string
   idea_summary: string
@@ -74,7 +60,6 @@ export interface AnalysisResult {
   mcq_answers?: MCQAnswer[]
   comparables: Comparable[]
   market_analysis: MarketAnalysis
-  market_visual_content?: MarketVisualContent
   execution_levers: ExecutionLever[]
   pivot_suggestions: PivotSuggestion[]
   created_at: string
