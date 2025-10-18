@@ -9,7 +9,10 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import os
 import json
+import requests
 from datetime import datetime
+from urllib.request import urlopen, Request
+from urllib.error import URLError, HTTPError
 from dotenv import load_dotenv
 from perplexity import Perplexity
 
@@ -77,22 +80,15 @@ class Comparable(BaseModel):
     outcome_label: str
     citations: List[Citation]
 
-class OutcomeProbabilities(BaseModel):
-    next_round: Dict[str, float]
-    next_round_explanation: str
-    pmf_proxy: Dict[str, float]
-    pmf_explanation: str
-    survival_24m: Dict[str, float]
-    survival_explanation: str
-    capital_efficiency_percentile: float
-    capital_efficiency_explanation: str
-
-class RiskRadar(BaseModel):
-    regulatory: float
-    platform_dependency: float
-    pricing_pressure: float
-    distribution_risk: float
-    explanations: Dict[str, str]
+class ExecutionLever(BaseModel):
+    title: str
+    description: str
+    impact: str  # "high", "medium", "low"
+    category: Optional[str] = None  # Flexible category from AI
+    media_url: Optional[str] = None  # Visual demonstration if available
+    media_description: Optional[str] = None
+    source_company: Optional[str] = None
+    citations: List[Citation] = []
 
 class PivotSuggestion(BaseModel):
     title: str
@@ -108,18 +104,21 @@ class MarketAnalysis(BaseModel):
     notable_moats: str
     citations: List[Citation]
 
+class MarketVisualContent(BaseModel):
+    visual_content: List[Dict[str, Any]]
+    market_insights: List[str]
+    media_results_count: int
+
 class AnalysisResponse(BaseModel):
     id: str
     idea_summary: str
     tags: List[str]
     mcq_answers: Optional[List[MCQAnswer]]
     comparables: List[Comparable]
-    outcome_probabilities: OutcomeProbabilities
     market_analysis: MarketAnalysis
-    risk_radar: RiskRadar
-    execution_levers: List[Dict[str, Any]]
+    market_visual_content: MarketVisualContent
+    execution_levers: List[ExecutionLever]
     pivot_suggestions: List[PivotSuggestion]
-    evidence_summary: Dict[str, Any]
     created_at: str
 
 # Helper Functions
@@ -176,26 +175,26 @@ async def classify_media_content(media_url: str, context: str = "") -> dict:
             "confidence": 0.0,
             "media_results": []
         }
-    
+
     try:
         # Use Perplexity's Media Classifier with proper API parameters
-        media_query = f"""Analyze this startup's visual branding and product design.
+        media_query = f"""Analyze this visual content for business and market insights.
 
-Context: {context if context else 'Startup business analysis'}
+Context: {context if context else 'Business analysis'}
 
 Provide insights on:
-1. Brand positioning and target market
-2. Product maturity and professionalism
-3. Market category and competitive positioning
-4. Design quality and user experience signals
-5. Target customer profile based on visual cues"""
+1. Brand positioning and target market signals
+2. Product design and maturity indicators
+3. Market category and competitive landscape
+4. Design quality and user experience cues
+5. Target customer profile from visual elements"""
 
         response = client.chat.completions.create(
             model="sonar-pro",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a brand and product analyst. Analyze visual content to extract market insights."
+                    "content": "You are a business analyst specializing in visual content analysis. Extract actionable market and brand insights from images, screenshots, and visual materials."
                 },
                 {
                     "role": "user",
@@ -205,33 +204,35 @@ Provide insights on:
                     ]
                 }
             ],
-            temperature=0.4,
-            max_tokens=800,
-            enable_media_classifier=True  # Enable Media Classifier API
+            temperature=0.3,  # Lower for more factual analysis
+            max_tokens=1000
         )
-        
+
         content = response.choices[0].message.content
-        
-        # Extract media results if available
+
+        # Extract media results if available (this is where logos/visual content would be)
         media_results = []
         if hasattr(response, 'media') and response.media:
             media_results = response.media
-        
-        # Parse insights
+
+        # Parse insights more systematically
         insights = []
         for line in content.split('\n'):
             line = line.strip()
             if line and len(line) > 20:
-                if line.startswith(('•', '-', '*', '1.', '2.', '3.', '4.', '5.')):
+                # Look for structured insights
+                if any(prefix in line.lower() for prefix in ['brand positioning:', 'product maturity:', 'market category:', 'design quality:', 'target customer:']):
+                    insights.append(line)
+                elif line.startswith(('•', '-', '*', '1.', '2.', '3.', '4.', '5.')):
                     insights.append(line.lstrip('•-*123456789. '))
-        
+
         return {
             "analysis": content,
             "insights": insights[:5],
-            "confidence": 0.80,
+            "confidence": 0.85,
             "media_results": media_results
         }
-        
+
     except Exception as e:
         print(f"Error in media classification: {e}")
         import traceback
@@ -242,6 +243,374 @@ Provide insights on:
             "confidence": 0.0,
             "media_results": []
         }
+
+async def get_company_logo_url(company_name: str, company_website: str = "") -> str:
+    """
+    Get company logo using simple favicon extraction
+    Just gets the favicon.ico from the company's website
+    """
+    if not company_website:
+        return None
+
+    # Simple favicon extraction - most websites have /favicon.ico
+    favicon_urls = [
+        f"https://{company_website}/favicon.ico",
+        f"https://www.{company_website}/favicon.ico",
+        f"http://{company_website}/favicon.ico",
+        f"http://www.{company_website}/favicon.ico"
+    ]
+
+    # Try each URL until we get a valid favicon
+    for favicon_url in favicon_urls:
+        try:
+            req = Request(favicon_url, method='HEAD')
+            response = urlopen(req, timeout=3)
+            if response.status == 200:
+                # Verify it's actually an image
+                content_type = response.headers.get('content-type', '').lower()
+                if any(img_type in content_type for img_type in ['image/', 'application/octet-stream']):
+                    return favicon_url
+        except (URLError, HTTPError):
+            continue
+
+    return None
+
+async def get_educational_visual_content(query: str) -> dict:
+    """
+    Use Media Classifier for educational/informational visual content where it actually works
+    This is for concepts, processes, demonstrations, etc. - not promotional content
+    """
+    if not client:
+        return {
+            "analysis": "Media analysis unavailable",
+            "insights": [],
+            "confidence": 0.0,
+            "media_results": []
+        }
+
+    try:
+        # Search for educational content with citations
+        response = client.chat.completions.create(
+            model="sonar-pro",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an educational content specialist. Find visual demonstrations, diagrams, and educational materials that help explain concepts."
+                },
+                {
+                    "role": "user",
+                    "content": query
+                }
+            ],
+            temperature=0.3,
+            max_tokens=800,
+            return_citations=True
+        )
+
+        content = response.choices[0].message.content
+
+        # Extract media results (educational visual content)
+        media_results = []
+        if hasattr(response, 'media') and response.media:
+            media_results = response.media
+
+        # Parse insights
+        insights = []
+        for line in content.split('\n'):
+            line = line.strip()
+            if line and len(line) > 20:
+                if line.startswith(('•', '-', '*', '1.', '2.', '3.', '4.', '5.')):
+                    insights.append(line.lstrip('•-*123456789. '))
+
+        return {
+            "analysis": content,
+            "insights": insights[:5],
+            "confidence": 0.85,
+            "media_results": media_results
+        }
+
+    except Exception as e:
+        print(f"Error in educational media classification: {e}")
+        return {
+            "analysis": f"Educational media analysis failed: {str(e)}",
+            "insights": [],
+            "confidence": 0.0,
+            "media_results": []
+        }
+
+async def get_market_visual_content(idea: str, market_data: dict) -> dict:
+    """
+    Use Media Classifier to get visual content that helps understand the market
+    Returns graphs, charts, diagrams, and visual data about market trends, competitive landscape, etc.
+    """
+    if not client:
+        return {
+            "visual_content": [],
+            "market_insights": "Market visual analysis unavailable",
+            "media_results": []
+        }
+
+    try:
+        # Create a query that asks for visual market data
+        market_query = f"""Show visual content that helps understand the market for: {idea}
+
+Focus on:
+1. Market size and growth charts (TAM/SAM visualizations)
+2. Competitive landscape diagrams and positioning maps
+3. Industry trend graphs and forecasting charts
+4. Market share visualizations and pie charts
+5. Funding flow diagrams and investment trend graphs
+6. Customer segmentation and demographic visualizations
+
+Return educational charts, graphs, and diagrams that illustrate market dynamics, competitive positioning, and industry trends."""
+
+        # Search for market visual content with citations
+        response = client.chat.completions.create(
+            model="sonar-pro",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a market research analyst. Find and return visual content like charts, graphs, diagrams, and infographics that help explain market dynamics, competitive landscapes, and industry trends."
+                },
+                {
+                    "role": "user",
+                    "content": market_query
+                }
+            ],
+            temperature=0.3,
+            max_tokens=1000,
+            return_citations=True
+        )
+
+        content = response.choices[0].message.content
+
+        # Extract media results (visual market content)
+        media_results = []
+        if hasattr(response, 'media') and response.media:
+            media_results = response.media
+
+        # Extract visual content URLs and descriptions
+        visual_content = []
+        for media_item in media_results:
+            if isinstance(media_item, dict) and media_item.get('url'):
+                visual_content.append({
+                    "url": media_item['url'],
+                    "type": media_item.get('type', 'image'),
+                    "description": media_item.get('description', 'Market visualization')
+                })
+
+        # Parse market insights from text content
+        market_insights = []
+        for line in content.split('\n'):
+            line = line.strip()
+            if line and len(line) > 20:
+                if any(keyword in line.lower() for keyword in ['market', 'chart', 'graph', 'diagram', 'trend', 'visualization']):
+                    market_insights.append(line)
+                elif line.startswith(('•', '-', '*', '1.', '2.', '3.', '4.', '5.')):
+                    market_insights.append(line.lstrip('•-*123456789. '))
+
+        return {
+            "visual_content": visual_content[:10],  # Limit to 10 visual items
+            "market_insights": market_insights[:5] if market_insights else ["Visual market analysis completed"],
+            "media_results": media_results
+        }
+
+    except Exception as e:
+        print(f"Error getting market visual content: {e}")
+        return {
+            "visual_content": [],
+            "market_insights": f"Market visual analysis failed: {str(e)}",
+            "media_results": []
+        }
+
+async def get_execution_levers_with_media(idea: str, comparables: List[Comparable], market_data: dict) -> List[ExecutionLever]:
+    """
+    Generate flexible execution levers based on real companies and market data
+    Uses Media Classifier to find relevant visual demonstrations when available
+    """
+    if not client:
+        return []
+    
+    try:
+        # Build context from comparables
+        comparable_context = ""
+        if comparables and len(comparables) > 0:
+            comparable_context = "Real companies in this space: " + ", ".join([c.name for c in comparables[:5]])
+        
+        # Generate flexible execution levers
+        levers_query = f"""Based on real data about {idea} in the market:
+
+{comparable_context}
+
+Identify 3-5 HIGH-IMPACT, SPECIFIC execution levers that would accelerate growth.
+
+Requirements:
+1. Each lever should be ACTIONABLE and SPECIFIC (not generic advice)
+2. Include REAL examples from comparable companies when possible
+3. Categorize each lever flexibly (e.g., "Distribution", "Product Innovation", "Monetization", "Go-to-Market", "Technical Moat", etc.)
+4. Rate impact as "high", "medium", or "low"
+5. For each lever, suggest what visual demonstration would be helpful (if any)
+
+Return JSON:
+{{
+  "levers": [
+    {{
+      "title": "Specific, actionable lever title",
+      "description": "Detailed description with real examples and expected outcomes",
+      "impact": "high|medium|low",
+      "category": "Flexible category name",
+      "source_company": "Company that did this successfully (if applicable)",
+      "visual_demo_query": "What kind of visual demo would help (optional, e.g., 'demo of X feature', 'chart showing Y trend')"
+    }}
+  ]
+}}"""
+
+        response = client.chat.completions.create(
+            model="sonar-pro",
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"You are a strategic advisor analyzing execution strategies from real companies. Use these companies as examples: {comparable_context}"
+                },
+                {
+                    "role": "user",
+                    "content": levers_query
+                }
+            ],
+            temperature=0.4,
+            max_tokens=1500,
+            return_citations=True
+        )
+        
+        content = response.choices[0].message.content
+        levers_data = parse_json_response(content)
+        
+        # Extract citations
+        response_citations = []
+        if hasattr(response, 'citations') and response.citations:
+            response_citations = response.citations[:3]
+        
+        execution_levers = []
+        
+        for lever_data in levers_data.get("levers", [])[:5]:
+            title = lever_data.get("title", "")
+            description = lever_data.get("description", "")
+            impact = lever_data.get("impact", "medium")
+            category = lever_data.get("category", "Strategy")
+            source_company = lever_data.get("source_company")
+            visual_demo_query = lever_data.get("visual_demo_query")
+            
+            # Try to find visual demonstration if suggested
+            media_url = None
+            media_description = None
+            
+            if visual_demo_query:
+                try:
+                    print(f"Searching for visual demo: {visual_demo_query}")
+                    
+                    # Use REST API with Media Classifier for images
+                    headers = {
+                        "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+                        "Content-Type": "application/json"
+                    }
+                    
+                    payload = {
+                        "model": "sonar-pro",
+                        "media_response": {
+                            "overrides": {
+                                "return_images": True,
+                                "return_videos": True
+                            }
+                        },
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "Find visual demonstrations, diagrams, or educational content that illustrates this concept."
+                            },
+                            {
+                                "role": "user",
+                                "content": f"Show visual demonstration: {visual_demo_query}"
+                            }
+                        ],
+                        "temperature": 0.3,
+                        "max_tokens": 500
+                    }
+                    
+                    api_response = requests.post(
+                        "https://api.perplexity.ai/chat/completions",
+                        headers=headers,
+                        json=payload,
+                        timeout=30
+                    )
+                    
+                    if api_response.status_code == 200:
+                        response_data = api_response.json()
+                        media_content = response_data['choices'][0]['message']['content']
+                        
+                        # Check for media in response
+                        images = response_data.get('media', {}).get('images', [])
+                        videos_in_lever = response_data.get('media', {}).get('videos', [])
+                        
+                        # Prefer videos, then images
+                        if videos_in_lever and len(videos_in_lever) > 0:
+                            media_url = videos_in_lever[0].get('url')
+                            media_description = videos_in_lever[0].get('title', visual_demo_query)
+                            print(f"✅ Found video demo: {media_url}")
+                        elif images and len(images) > 0:
+                            media_url = images[0].get('url')
+                            media_description = images[0].get('title', visual_demo_query)
+                            print(f"✅ Found image demo: {media_url}")
+                    else:
+                        print(f"Media search failed: {api_response.status_code}")
+                        media_content = ""
+                    
+                    # If no media from Media Classifier, look for image URLs in content
+                    if not media_url:
+                        import re
+                        image_patterns = [
+                            r'https?://[^\s\)]+\.(?:jpg|jpeg|png|gif|svg|webp)',
+                            r'https?://imgur\.com/[\w]+',
+                            r'https?://i\.imgur\.com/[\w]+\.[\w]+'
+                        ]
+                        
+                        for pattern in image_patterns:
+                            matches = re.findall(pattern, media_content)
+                            if matches:
+                                media_url = matches[0]
+                                media_description = visual_demo_query
+                                print(f"✅ Found visual demo in content: {media_url}")
+                                break
+                except Exception as e:
+                    print(f"Could not find visual demo for '{visual_demo_query}': {e}")
+            
+            # Build citations
+            lever_citations = []
+            for citation in response_citations[:2]:
+                if isinstance(citation, dict):
+                    lever_citations.append(Citation(
+                        title=citation.get('title', 'Source'),
+                        url=citation.get('url', ''),
+                        snippet=citation.get('snippet', '')[:200]
+                    ))
+            
+            execution_levers.append(ExecutionLever(
+                title=title,
+                description=description,
+                impact=impact,
+                category=category,
+                media_url=media_url,
+                media_description=media_description,
+                source_company=source_company,
+                citations=lever_citations
+            ))
+        
+        return execution_levers
+        
+    except Exception as e:
+        print(f"Error generating execution levers: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
 
 async def fetch_crunchbase_data(idea: str, industry: str, mcq_context: str) -> dict:
     """
@@ -294,8 +663,7 @@ Context: {mcq_context if mcq_context else 'General market analysis'}"""
             ],
             temperature=0.2,  # Very low for factual data
             max_tokens=2000,
-            search_recency_filter="year",  # Recent data only
-            enable_media_classifier=True
+            search_recency_filter="year"  # Recent data only
         )
         
         content = response.choices[0].message.content.lower()
@@ -374,155 +742,6 @@ Context: {mcq_context if mcq_context else 'General market analysis'}"""
             "details": ["Unable to fetch real-time Crunchbase data"],
             "raw_data": str(e)
         }
-
-async def calculate_outcome_probabilities(
-    idea: str, 
-    comparables: List[Comparable], 
-    market_data: dict,
-    analysis_data: dict,
-    crunchbase_data: dict
-) -> OutcomeProbabilities:
-    """
-    Calculate data-driven outcome probabilities based on:
-    - REAL Crunchbase data (primary source)
-    - Comparable company outcomes
-    - Market crowding and funding velocity
-    - Industry base rates
-    """
-    
-    # Use REAL Crunchbase data as primary source
-    base_success_rate = crunchbase_data.get("success_rate", 0.30)
-    total_companies = crunchbase_data.get("total_companies", 0)
-    funded_companies = crunchbase_data.get("funded_companies", 0)
-    failure_rate = crunchbase_data.get("failure_rate", 0.45)
-    
-    # If we have comparables, blend them with Crunchbase data (70% Crunchbase, 30% comparables)
-    if comparables and len(comparables) > 0:
-        win_count = sum(1 for c in comparables if c.outcome_label == "win")
-        ok_count = sum(1 for c in comparables if c.outcome_label == "ok")
-        total = len(comparables)
-        
-        comparables_success_rate = (win_count + ok_count * 0.5) / total if total > 0 else base_success_rate
-        
-        # Blend: prioritize real Crunchbase data
-        base_success_rate = base_success_rate * 0.70 + comparables_success_rate * 0.30
-    
-    # Ensure we have valid data
-    if base_success_rate == 0.0 or total_companies == 0:
-        base_success_rate = 0.30  # Conservative industry average
-        total_companies = 50
-        funded_companies = 15
-    
-    # Adjust for market conditions
-    crowding_index = market_data.get("crowding_index", 50)
-    crowding_penalty = (crowding_index - 50) / 200  # -0.25 to +0.25
-    
-    # Adjust for funding environment
-    funding_velocity = market_data.get("funding_velocity", "").lower()
-    funding_boost = 0.0
-    if "growing" in funding_velocity or "increasing" in funding_velocity:
-        funding_boost = 0.05
-    elif "declining" in funding_velocity or "decreasing" in funding_velocity:
-        funding_boost = -0.05
-    
-    # Calculate next round probability
-    next_round_prob = base_success_rate + funding_boost - crowding_penalty
-    next_round_prob = max(0.05, min(0.85, next_round_prob))  # Keep realistic bounds
-    
-    # PMF probability (typically lower than funding)
-    # Adjusted based on comparable outcomes
-    pmf_prob = next_round_prob * 0.65  # ~65% of funded companies reach meaningful PMF
-    if comparables:
-        # Boost if we see strong traction signals
-        strong_traction = sum(1 for c in comparables if "arr" in c.traction_snippet.lower() or "mau" in c.traction_snippet.lower())
-        if strong_traction > len(comparables) / 2:
-            pmf_prob *= 1.15
-    pmf_prob = max(0.05, min(0.70, pmf_prob))
-    
-    # 24-month survival probability
-    # Based on industry data: ~60% of startups survive 2 years
-    survival_base = 0.60
-    # Adjust for market moats
-    moats = market_data.get("notable_moats", "").lower()
-    if "strong" in moats or "network effect" in moats:
-        survival_boost = 0.10
-    elif "limited" in moats or "weak" in moats:
-        survival_boost = -0.10
-    else:
-        survival_boost = 0.0
-    
-    survival_prob = survival_base + survival_boost + funding_boost - (crowding_penalty * 0.5)
-    survival_prob = max(0.30, min(0.85, survival_prob))
-    
-    # Capital efficiency percentile
-    # Higher in less crowded markets, lower in very competitive ones
-    capital_efficiency = 50 + (50 - crowding_index) * 0.4
-    if "plg" in str(analysis_data).lower() or "product-led" in str(analysis_data).lower():
-        capital_efficiency += 10
-    capital_efficiency = max(10, min(90, capital_efficiency))
-    
-    # Generate user-friendly explanations using REAL data
-    next_round_explanation = f"Based on Crunchbase data: {funded_companies} of {total_companies} startups in this space raised institutional funding ({base_success_rate:.0%} success rate). "
-    if comparables and len(comparables) > 0:
-        win_count = sum(1 for c in comparables if c.outcome_label == "win")
-        next_round_explanation += f"Comparable analysis shows {win_count} of {len(comparables)} succeeded. "
-    if crowding_penalty > 0.1:
-        next_round_explanation += "High market crowding reduces funding chances. "
-    elif crowding_penalty < -0.1:
-        next_round_explanation += "Emerging market with funding opportunity. "
-    if funding_boost > 0:
-        next_round_explanation += "Growing investor interest."
-    elif funding_boost < 0:
-        next_round_explanation += "Cooling investor sentiment."
-    
-    pmf_explanation = "Product-Market Fit means reaching $1M ARR or 100K active users. "
-    if pmf_prob > 0.40:
-        pmf_explanation += "Your reference class shows strong traction signals."
-    elif pmf_prob < 0.25:
-        pmf_explanation += "Many similar companies struggled to find PMF."
-    else:
-        pmf_explanation += "Mixed outcomes in comparable companies."
-    
-    survival_explanation = "2-year survival depends on market defensibility and capital efficiency. "
-    if "strong" in moats or "network effect" in moats:
-        survival_explanation += "Strong moats improve survival odds."
-    elif "limited" in moats:
-        survival_explanation += "Limited moats increase risk."
-    else:
-        survival_explanation += "Moderate defensibility typical for this market."
-    
-    avg_funding = crunchbase_data.get("avg_funding", "Unknown")
-    capital_efficiency_explanation = f"Startups in this space typically raise {avg_funding} on average (Crunchbase data). You'd be in the {int(capital_efficiency)}th percentile for capital efficiency. "
-    if capital_efficiency > 65:
-        capital_efficiency_explanation += "Lower CAC and faster growth expected."
-    elif capital_efficiency < 35:
-        capital_efficiency_explanation += "Higher burn rate typical in this space."
-    else:
-        capital_efficiency_explanation += "Average capital efficiency for this market."
-    
-    # Return with confidence intervals
-    return OutcomeProbabilities(
-        next_round={
-            "mean": next_round_prob,
-            "lower_ci": max(0, next_round_prob - 0.12),
-            "upper_ci": min(1, next_round_prob + 0.12)
-        },
-        next_round_explanation=next_round_explanation,
-        pmf_proxy={
-            "mean": pmf_prob,
-            "lower_ci": max(0, pmf_prob - 0.10),
-            "upper_ci": min(1, pmf_prob + 0.10)
-        },
-        pmf_explanation=pmf_explanation,
-        survival_24m={
-            "mean": survival_prob,
-            "lower_ci": max(0, survival_prob - 0.15),
-            "upper_ci": min(1, survival_prob + 0.15)
-        },
-        survival_explanation=survival_explanation,
-        capital_efficiency_percentile=capital_efficiency,
-        capital_efficiency_explanation=capital_efficiency_explanation
-    )
 
 async def get_market_analysis_with_finance(idea: str, mcq_context: str, analysis_data: dict) -> dict:
     """
@@ -688,7 +907,7 @@ async def classify_media(media_url: str, context: Optional[str] = None):
     """
     if not client:
         raise HTTPException(status_code=500, detail="Perplexity client not configured")
-    
+
     try:
         result = await classify_media_content(media_url, context or "")
         return {
@@ -696,11 +915,84 @@ async def classify_media(media_url: str, context: Optional[str] = None):
             "media_url": media_url,
             "analysis": result["analysis"],
             "insights": result["insights"],
-            "confidence": result["confidence"]
+            "confidence": result["confidence"],
+            "media_results": result["media_results"]
         }
     except Exception as e:
         print(f"Error in media classification endpoint: {e}")
         raise HTTPException(status_code=500, detail=f"Media classification failed: {str(e)}")
+
+@app.post("/api/company-logo")
+async def get_company_logo(company_name: str, company_website: str):
+    """
+    Get company logo using simple favicon extraction
+    Just gets the favicon.ico from the company's website - simple and reliable
+    """
+    try:
+        logo_url = await get_company_logo_url(company_name, company_website)
+        return {
+            "status": "success",
+            "company_name": company_name,
+            "logo_url": logo_url
+        }
+    except Exception as e:
+        print(f"Error getting company logo: {e}")
+        raise HTTPException(status_code=500, detail=f"Logo fetch failed: {str(e)}")
+
+@app.post("/api/educational-media")
+async def get_educational_visuals(query: str):
+    """
+    Get educational/informational visual content using Media Classifier
+    This works for concepts, processes, demonstrations, diagrams, etc.
+    Does NOT work for promotional content like company logos.
+    """
+    if not client:
+        raise HTTPException(status_code=500, detail="Perplexity client not configured")
+
+    try:
+        result = await get_educational_visual_content(query)
+        return {
+            "status": "success",
+            "query": query,
+            "analysis": result["analysis"],
+            "insights": result["insights"],
+            "confidence": result["confidence"],
+            "media_results_count": len(result["media_results"])
+        }
+    except Exception as e:
+        print(f"Error getting educational visuals: {e}")
+        raise HTTPException(status_code=500, detail=f"Educational media analysis failed: {str(e)}")
+
+@app.post("/api/market-visual-content")
+async def get_market_visuals(idea: str, context: Optional[str] = None):
+    """
+    Get visual content that helps understand a market using Media Classifier
+    Returns graphs, charts, diagrams, and visual data about market trends, competitive landscape, etc.
+    """
+    if not client:
+        raise HTTPException(status_code=500, detail="Perplexity client not configured")
+
+    try:
+        # Use basic market data for context
+        market_data = {
+            "crowding_index": 50,
+            "tam_sam_rationale": f"Market analysis for {idea}",
+            "funding_velocity": "Recent funding trends",
+            "notable_moats": "Competitive advantages"
+        }
+
+        result = await get_market_visual_content(idea, market_data)
+
+        return {
+            "status": "success",
+            "idea": idea,
+            "visual_content": result["visual_content"],
+            "market_insights": result["market_insights"],
+            "media_results_count": len(result["media_results"])
+        }
+    except Exception as e:
+        print(f"Error getting market visuals: {e}")
+        raise HTTPException(status_code=500, detail=f"Market visual analysis failed: {str(e)}")
 
 @app.post("/api/generate-mcqs", response_model=MCQResponse)
 async def generate_mcqs(submission: IdeaSubmission):
@@ -882,13 +1174,13 @@ ONLY use companies EXPLICITLY mentioned in the search results. Include the sourc
         for idx, comp in enumerate(companies_data[:10]):  # Top 10 companies
             company_name = comp.get("name", "")
             company_website = comp.get("website", "")
-            
+
             # Skip if no real name
             if not company_name or company_name.lower() in ["unknown", "company", "startup"]:
                 continue
-            
-            # Get logo URL using Clearbit or domain
-            logo_url = f"https://logo.clearbit.com/{company_website}" if company_website else None
+
+            # Get logo using dedicated logo services (Media Classifier doesn't return promotional logos)
+            logo_url = await get_company_logo_url(company_name, company_website)
             
             # Determine outcome from description
             outcome = comp.get("outcome", "active")
@@ -970,79 +1262,23 @@ ONLY use companies EXPLICITLY mentioned in the search results. Include the sourc
             notable_moats=market_data["notable_moats"],
             citations=market_data["citations"]
         )
+
+        # Get visual content that helps understand the market
+        print(f"Fetching visual market content for: {request.idea}")
+        market_visual_data = await get_market_visual_content(request.idea, market_data)
+        market_visual_content = MarketVisualContent(
+            visual_content=market_visual_data["visual_content"],
+            market_insights=market_visual_data["market_insights"],
+            media_results_count=len(market_visual_data["media_results"])
+        )
         
-        # Calculate data-driven probabilities using REAL Crunchbase data
-        outcome_probs = await calculate_outcome_probabilities(
+        # Generate flexible execution levers with media support
+        print(f"Generating execution levers with media for: {request.idea}")
+        execution_levers = await get_execution_levers_with_media(
             idea=request.idea,
             comparables=comparables,
-            market_data=market_data,
-            analysis_data=analysis_data,
-            crunchbase_data=crunchbase_data
+            market_data=market_data
         )
-        
-        # Risk analysis
-        risks = analysis_data.get("risks", {})
-        risk_radar = RiskRadar(
-            regulatory=float(risks.get("regulatory", 15)),
-            platform_dependency=float(risks.get("platform", 45)),
-            pricing_pressure=float(risks.get("pricing", 60)),
-            distribution_risk=float(risks.get("distribution", 70)),
-            explanations={
-                "regulatory": "Low regulatory burden",
-                "platform_dependency": "Moderate third-party reliance",
-                "pricing_pressure": "Competitive pricing environment",
-                "distribution_risk": "Crowded distribution channels"
-            }
-        )
-        
-        # Execution levers from real market insights
-        execution_levers_prompt = f"""Based on real data about {request.idea} and the {len(comparables)} similar companies found:
-
-Extract 3-5 specific, actionable execution levers with REAL examples from these companies.
-
-Return JSON:
-{{
-  "levers": [
-    {{
-      "title": "Specific Action",
-      "description": "How Company X did this with results",
-      "impact": "high|medium|low",
-      "source_company": "Real company name"
-    }}
-  ]
-}}
-
-Use ONLY real examples from the search results."""
-
-        try:
-            levers_response = client.chat.completions.create(
-                model="sonar-pro",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": f"Extract real execution strategies from these companies: {', '.join([c.name for c in comparables[:5]])}"
-                    },
-                    {
-                        "role": "user",
-                        "content": execution_levers_prompt
-                    }
-                ],
-                temperature=0.3,
-                max_tokens=1000
-            )
-            
-            levers_data = parse_json_response(levers_response.choices[0].message.content)
-            execution_levers = []
-            for lever in levers_data.get("levers", [])[:5]:
-                execution_levers.append({
-                    "title": lever.get("title", ""),
-                    "description": lever.get("description", ""),
-                    "impact": lever.get("impact", "medium"),
-                    "citations": []  # Could add company citations here
-                })
-        except Exception as e:
-            print(f"Error generating execution levers: {e}")
-            execution_levers = []
         
         # Pivot suggestions from real market patterns
         pivot_prompt = f"""Based on the {len(comparables)} real companies analyzed for {request.idea}:
@@ -1101,17 +1337,10 @@ Only suggest pivots with real precedent."""
             tags=["AI", "B2B", "SaaS", "Automation"],
             mcq_answers=request.mcq_answers,
             comparables=comparables,
-            outcome_probabilities=outcome_probs,
             market_analysis=market_analysis,
-            risk_radar=risk_radar,
+            market_visual_content=market_visual_content,
             execution_levers=execution_levers,
             pivot_suggestions=pivot_suggestions,
-            evidence_summary={
-                "total_sources": 25,
-                "high_quality_sources": 18,
-                "recent_sources": 20,
-                "source_types": {"news": 12, "academic": 3, "sec_filings": 2, "blogs": 8}
-            },
             created_at=datetime.now().isoformat()
         )
         

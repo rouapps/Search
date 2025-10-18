@@ -1,20 +1,17 @@
 'use client'
 
 import {
-  Target,
   TrendingUp,
-  AlertTriangle,
   Zap,
   RefreshCw,
   ExternalLink,
   CheckCircle2,
   XCircle,
   MinusCircle,
+  Image as ImageIcon,
 } from 'lucide-react'
 import type { AnalysisResult } from '@/types'
-import { formatConfidenceInterval, formatPercentage } from '@/lib/utils'
-import ProbabilityChart from './ProbabilityChart'
-import RiskRadarChart from './RiskRadarChart'
+import { formatPercentage } from '@/lib/utils'
 
 interface DashboardProps {
   result: AnalysisResult
@@ -53,16 +50,6 @@ export default function Dashboard({ result, onReset }: DashboardProps) {
             <h1 className="text-3xl font-serif font-bold text-slate-900 mb-3">
               {result.idea_summary}
             </h1>
-            <div className="flex flex-wrap gap-2 mb-4">
-              {result.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-sm font-medium"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
             {result.mcq_answers && result.mcq_answers.length > 0 && (
               <div className="space-y-2">
                 {result.mcq_answers.map((answer, idx) => (
@@ -87,64 +74,74 @@ export default function Dashboard({ result, onReset }: DashboardProps) {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Left Column - 2/3 width */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Outcome Probabilities */}
+          {/* Market Landscape */}
           <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
             <div className="flex items-center gap-3 mb-6">
-              <Target className="w-6 h-6 text-slate-900" />
+              <TrendingUp className="w-6 h-6 text-slate-900" />
               <h2 className="text-2xl font-serif font-bold text-slate-900">
-                Outcome Probabilities (12–24 months)
+                Market Landscape
               </h2>
             </div>
-            <ProbabilityChart probabilities={result.outcome_probabilities} />
-            <div className="mt-6 grid md:grid-cols-2 gap-4">
-              <div className="p-4 bg-slate-50 rounded-xl">
-                <div className="text-sm text-slate-600 mb-1">Next Round Funding</div>
-                <div className="text-xl font-serif font-bold text-slate-900 mb-2">
-                  {formatConfidenceInterval(
-                    result.outcome_probabilities.next_round.mean,
-                    result.outcome_probabilities.next_round.lower_ci,
-                    result.outcome_probabilities.next_round.upper_ci
-                  )}
+            
+            <div className="space-y-6">
+              {/* Market Analysis */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="p-4 bg-slate-50 rounded-xl">
+                  <div className="text-sm text-slate-600 mb-2">Market Crowding</div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500"
+                        style={{ width: `${result.market_analysis.crowding_index}%` }}
+                      />
+                    </div>
+                    <span className="text-lg font-bold text-slate-900">
+                      {result.market_analysis.crowding_index.toFixed(0)}
+                    </span>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  {result.outcome_probabilities.next_round_explanation}
-                </p>
-              </div>
-              <div className="p-4 bg-slate-50 rounded-xl">
-                <div className="text-sm text-slate-600 mb-1">Product-Market Fit</div>
-                <div className="text-xl font-serif font-bold text-slate-900 mb-2">
-                  {formatConfidenceInterval(
-                    result.outcome_probabilities.pmf_proxy.mean,
-                    result.outcome_probabilities.pmf_proxy.lower_ci,
-                    result.outcome_probabilities.pmf_proxy.upper_ci
-                  )}
+                
+                <div className="p-4 bg-slate-50 rounded-xl">
+                  <div className="text-sm text-slate-600 mb-2">Funding Activity</div>
+                  <p className="text-sm text-slate-900">{result.market_analysis.funding_velocity}</p>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  {result.outcome_probabilities.pmf_explanation}
-                </p>
               </div>
+
               <div className="p-4 bg-slate-50 rounded-xl">
-                <div className="text-sm text-slate-600 mb-1">24-Month Survival</div>
-                <div className="text-xl font-serif font-bold text-slate-900 mb-2">
-                  {formatConfidenceInterval(
-                    result.outcome_probabilities.survival_24m.mean,
-                    result.outcome_probabilities.survival_24m.lower_ci,
-                    result.outcome_probabilities.survival_24m.upper_ci
-                  )}
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  {result.outcome_probabilities.survival_explanation}
-                </p>
+                <div className="text-sm text-slate-600 mb-2">Market Size (TAM/SAM)</div>
+                <p className="text-sm text-slate-900">{result.market_analysis.tam_sam_rationale}</p>
               </div>
+
               <div className="p-4 bg-slate-50 rounded-xl">
-                <div className="text-sm text-slate-600 mb-1">Capital Efficiency</div>
-                <div className="text-xl font-serif font-bold text-slate-900 mb-2">
-                  {result.outcome_probabilities.capital_efficiency_percentile.toFixed(0)}th percentile
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  {result.outcome_probabilities.capital_efficiency_explanation}
-                </p>
+                <div className="text-sm text-slate-600 mb-2">Key Moats & Defensibility</div>
+                <p className="text-sm text-slate-900">{result.market_analysis.notable_moats}</p>
               </div>
+
+              {/* Visual Content from Media Classifier */}
+              {result.market_visual_content && result.market_visual_content.visual_content.length > 0 && (
+                <div className="space-y-4">
+                  <div className="text-sm font-medium text-slate-700">Market Insights & Data</div>
+                  <div className="grid gap-4">
+                    {result.market_visual_content.visual_content.slice(0, 3).map((item, idx) => (
+                      <div key={idx} className="rounded-lg overflow-hidden border border-slate-200">
+                        <img 
+                          src={item.url} 
+                          alt={item.description}
+                          className="w-full h-auto"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                        {item.description && (
+                          <div className="p-3 bg-slate-50 border-t border-slate-200">
+                            <p className="text-xs text-slate-600">{item.description}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -230,13 +227,21 @@ export default function Dashboard({ result, onReset }: DashboardProps) {
                 Execution Levers
               </h2>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-6">
               {result.execution_levers.map((lever, idx) => (
-                <div key={idx} className="p-5 bg-slate-50 rounded-xl">
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-semibold text-slate-900">{lever.title}</h3>
+                <div key={idx} className="p-6 bg-slate-50 rounded-xl border border-slate-200">
+                  {/* Header with category and impact */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      {lever.category && (
+                        <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">
+                          {lever.category}
+                        </div>
+                      )}
+                      <h3 className="font-semibold text-lg text-slate-900">{lever.title}</h3>
+                    </div>
                     <span
-                      className={`px-2 py-1 rounded-md text-xs font-medium ${
+                      className={`px-3 py-1 rounded-full text-xs font-medium ml-3 ${
                         lever.impact === 'high'
                           ? 'bg-green-100 text-green-700'
                           : lever.impact === 'medium'
@@ -247,7 +252,43 @@ export default function Dashboard({ result, onReset }: DashboardProps) {
                       {lever.impact} impact
                     </span>
                   </div>
-                  <p className="text-sm text-slate-700">{lever.description}</p>
+                  
+                  {/* Description */}
+                  <p className="text-sm text-slate-700 mb-4">{lever.description}</p>
+                  
+                  {/* Visual demonstration if available */}
+                  {lever.media_url && (
+                    <div className="mt-4 rounded-lg overflow-hidden border border-slate-300">
+                      {lever.media_url.includes('youtube.com') || lever.media_url.includes('youtu.be') || lever.media_url.includes('vimeo.com') ? (
+                        <div className="aspect-video bg-slate-100 flex items-center justify-center">
+                          <Video className="w-12 h-12 text-slate-400" />
+                          <p className="ml-2 text-sm text-slate-600">Video demonstration available</p>
+                        </div>
+                      ) : (
+                        <img 
+                          src={lever.media_url} 
+                          alt={lever.media_description || 'Visual demonstration'}
+                          className="w-full h-auto"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      )}
+                      {lever.media_description && (
+                        <div className="p-3 bg-slate-100 border-t border-slate-200">
+                          <p className="text-xs text-slate-600">{lever.media_description}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Source company if available */}
+                  {lever.source_company && (
+                    <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                      <ExternalLink className="w-3 h-3" />
+                      <span>Example from: <span className="font-medium text-slate-700">{lever.source_company}</span></span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -256,63 +297,6 @@ export default function Dashboard({ result, onReset }: DashboardProps) {
 
         {/* Right Column - 1/3 width */}
         <div className="space-y-6">
-          {/* Market & Competition */}
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-5 h-5 text-slate-900" />
-              <h2 className="text-xl font-serif font-bold text-slate-900">
-                Market & Competition
-              </h2>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <div className="text-sm text-slate-600 mb-2">Crowding Index</div>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500"
-                      style={{ width: `${result.market_analysis.crowding_index}%` }}
-                    />
-                  </div>
-                  <span className="text-lg font-serif font-bold text-slate-900">
-                    {result.market_analysis.crowding_index.toFixed(0)}
-                  </span>
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-slate-600 mb-1">TAM/SAM</div>
-                <p className="text-sm text-slate-900">{result.market_analysis.tam_sam_rationale}</p>
-              </div>
-              <div>
-                <div className="text-sm text-slate-600 mb-1">Funding Velocity</div>
-                <p className="text-sm text-slate-900">{result.market_analysis.funding_velocity}</p>
-              </div>
-              <div>
-                <div className="text-sm text-slate-600 mb-1">Notable Moats</div>
-                <p className="text-sm text-slate-900">{result.market_analysis.notable_moats}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Risk Radar */}
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <AlertTriangle className="w-5 h-5 text-slate-900" />
-              <h2 className="text-xl font-serif font-bold text-slate-900">Risk Radar</h2>
-            </div>
-            <RiskRadarChart risk={result.risk_radar} />
-            <div className="mt-4 space-y-3">
-              {Object.entries(result.risk_radar.explanations).map(([key, value]) => (
-                <div key={key} className="text-sm">
-                  <span className="font-medium text-slate-900 capitalize">
-                    {key.replace('_', ' ')}:
-                  </span>{' '}
-                  <span className="text-slate-700">{value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* Pivot Navigator */}
           <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
             <h2 className="text-xl font-serif font-bold text-slate-900 mb-4">
@@ -335,44 +319,55 @@ export default function Dashboard({ result, onReset }: DashboardProps) {
               ))}
             </div>
           </div>
-
-          {/* Evidence Summary */}
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
-            <h2 className="text-xl font-serif font-bold text-slate-900 mb-4">
-              Evidence Summary
-            </h2>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600">Total Sources</span>
-                <span className="font-semibold text-slate-900">
-                  {result.evidence_summary.total_sources}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600">High Quality</span>
-                <span className="font-semibold text-slate-900">
-                  {result.evidence_summary.high_quality_sources}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600">Recent (≤12mo)</span>
-                <span className="font-semibold text-slate-900">
-                  {result.evidence_summary.recent_sources}
-                </span>
-              </div>
-              <div className="pt-3 border-t border-slate-200">
-                <div className="text-sm text-slate-600 mb-2">Source Types</div>
-                {Object.entries(result.evidence_summary.source_types).map(([type, count]) => (
-                  <div key={type} className="flex justify-between items-center text-xs mb-1">
-                    <span className="text-slate-600 capitalize">{type}</span>
-                    <span className="text-slate-900">{count}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
+
+
+      {/* Market Visual Content Section - Full Width */}
+      {result.market_visual_content && result.market_visual_content.visual_content.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <ImageIcon className="w-6 h-6 text-slate-900" />
+            <h2 className="text-2xl font-serif font-bold text-slate-900">
+              Market Insights & Visualizations
+            </h2>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {result.market_visual_content.visual_content.map((item, idx) => (
+              <div key={idx} className="border border-slate-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+                <div className="aspect-video w-full bg-slate-100 flex items-center justify-center">
+                  <img 
+                    src={item.url} 
+                    alt={item.description}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+                <div className="p-4">
+                  <p className="text-sm text-slate-700">{item.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {result.market_visual_content.market_insights.length > 0 && (
+            <div className="mt-6 p-4 bg-slate-50 rounded-xl">
+              <h3 className="font-semibold text-slate-900 mb-2">Key Insights</h3>
+              <ul className="space-y-1">
+                {result.market_visual_content.market_insights.map((insight, idx) => (
+                  <li key={idx} className="text-sm text-slate-700 flex items-start">
+                    <span className="mr-2">•</span>
+                    <span>{insight}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -173,31 +173,6 @@ export default function Home() {
                 </div>
               </div>
             </div>
-
-            {/* Info Cards */}
-            <div className="mt-12 grid md:grid-cols-3 gap-6">
-              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-slate-200">
-                <div className="text-3xl mb-3">🎯</div>
-                <h3 className="font-serif text-lg font-semibold mb-2">Reference Class</h3>
-                <p className="text-sm text-slate-600">
-                  Compare your idea to thousands of similar cases
-                </p>
-              </div>
-              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-slate-200">
-                <div className="text-3xl mb-3">📊</div>
-                <h3 className="font-serif text-lg font-semibold mb-2">Probabilistic</h3>
-                <p className="text-sm text-slate-600">
-                  Get calibrated estimates with confidence intervals
-                </p>
-              </div>
-              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-slate-200">
-                <div className="text-3xl mb-3">🔗</div>
-                <h3 className="font-serif text-lg font-semibold mb-2">Cited</h3>
-                <p className="text-sm text-slate-600">
-                  Every claim links to sources and evidence
-                </p>
-              </div>
-            </div>
           </div>
         )}
 

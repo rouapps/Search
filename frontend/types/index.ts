@@ -30,39 +30,6 @@ export interface Comparable {
   citations: Citation[]
 }
 
-export interface OutcomeProbabilities {
-  next_round: {
-    mean: number
-    lower_ci: number
-    upper_ci: number
-  }
-  next_round_explanation: string
-  pmf_proxy: {
-    mean: number
-    lower_ci: number
-    upper_ci: number
-  }
-  pmf_explanation: string
-  survival_24m: {
-    mean: number
-    lower_ci: number
-    upper_ci: number
-  }
-  survival_explanation: string
-  capital_efficiency_percentile: number
-  capital_efficiency_explanation: string
-}
-
-export interface RiskRadar {
-  regulatory: number
-  platform_dependency: number
-  pricing_pressure: number
-  distribution_risk: number
-  explanations: {
-    [key: string]: string
-  }
-}
-
 export interface PivotSuggestion {
   title: string
   rationale: string
@@ -83,7 +50,21 @@ export interface ExecutionLever {
   title: string
   description: string
   impact: 'high' | 'medium' | 'low'
+  category?: string | null  // Flexible category from AI
+  media_url?: string | null  // Visual demonstration if available
+  media_description?: string | null
+  source_company?: string | null
   citations: Citation[]
+}
+
+export interface MarketVisualContent {
+  visual_content: Array<{
+    url: string
+    type: string
+    description: string
+  }>
+  market_insights: string[]
+  media_results_count: number
 }
 
 export interface AnalysisResult {
@@ -92,19 +73,10 @@ export interface AnalysisResult {
   tags: string[]
   mcq_answers?: MCQAnswer[]
   comparables: Comparable[]
-  outcome_probabilities: OutcomeProbabilities
   market_analysis: MarketAnalysis
-  risk_radar: RiskRadar
+  market_visual_content?: MarketVisualContent
   execution_levers: ExecutionLever[]
   pivot_suggestions: PivotSuggestion[]
-  evidence_summary: {
-    total_sources: number
-    high_quality_sources: number
-    recent_sources: number
-    source_types: {
-      [key: string]: number
-    }
-  }
   created_at: string
 }
 
